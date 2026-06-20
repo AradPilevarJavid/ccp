@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
+use glob::Pattern;
 use ignore::WalkBuilder;
 use std::collections::BTreeMap;
 use std::fs;
@@ -76,7 +77,6 @@ fn insert_entry(root: &mut BTreeMap<String, Entry>, components: &[String], is_di
         entry.is_dir = true;
         insert_entry(&mut entry.children, &components[1..], is_dir);
     } else {
-        // leaf – if we arrived here, the last component determines type
         entry.is_dir = is_dir;
     }
 }
@@ -84,53 +84,25 @@ fn insert_entry(root: &mut BTreeMap<String, Entry>, components: &[String], is_di
 // ---------------------------------------------------------------------------
 // Tree formatting
 // ---------------------------------------------------------------------------
-fn fmt_tree(entries: &BTreeMap<String, Entry>, prefix: &str, is_last: bool) -> String {
+fn fmt_tree(entries: &BTreeMap<String, Entry>, prefix: &str) -> String {
     let mut out = String::new();
     let entries_vec: Vec<&Entry> = entries.values().collect();
     let count = entries_vec.len();
     for (i, entry) in entries_vec.iter().enumerate() {
         let last_child = i == count - 1;
-        let connector = if is_last && i == 0 {
-            if last_child {
-                "└── "
-            } else {
-                "├── "
-            }
-        } else {
-            if last_child {
-                "└── "
-            } else {
-                "├── "
-            }
-        };
-        // Use the prefix logic from the classic tree algorithm
-        let current_prefix = if is_last && i == 0 {
-            prefix.to_string()
-        } else {
-            format!("{}{}", prefix, if is_last { "    " } else { "│   " })
-        };
-
-        // Actually, correct algorithm:
-        let (connector, children_prefix) = if last_child {
+        let (connector, child_prefix) = if last_child {
             ("└── ", format!("{}    ", prefix))
         } else {
             ("├── ", format!("{}│   ", prefix))
         };
-
         let display_name = if entry.is_dir {
             format!("{}/", entry.name)
         } else {
             entry.name.clone()
         };
         out.push_str(&format!("{}{}{}\n", prefix, connector, display_name));
-
         if entry.is_dir && !entry.children.is_empty() {
-            let child_prefix = if last_child {
-                format!("{}    ", prefix)
-            } else {
-                format!("{}│   ", prefix)
-            };
-            out.push_str(&fmt_tree(&entry.children, &child_prefix, last_child));
+            out.push_str(&fmt_tree(&entry.children, &child_prefix));
         }
     }
     out
@@ -145,7 +117,6 @@ fn file_content(path: &Path, max_size: u64) -> Result<String> {
         return Ok(format!("[File too large, > {} bytes]", max_size));
     }
     let bytes = fs::read(path)?;
-    // Check if it looks like text (valid UTF-8)
     match String::from_utf8(bytes) {
         Ok(s) => Ok(s),
         Err(_) => Ok("[Binary file not shown]".to_string()),
@@ -174,45 +145,30 @@ fn collect_files(entries: &BTreeMap<String, Entry>, current_path: &Path) -> Vec<
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Build the walker
+    // Clone root for the filter closure, keep original for later use.
+    let root_for_filter = args.root.clone();
+
     let mut builder = WalkBuilder::new(&args.root);
     builder
-        .hidden(!args.include_hidden)   // skip hidden unless explicitly included
+        .hidden(!args.include_hidden)
         .git_ignore(!args.no_ignore)
         .ignore(!args.no_ignore)
-        .max_filesize(args.max_size)
+        .max_filesize(Some(args.max_size))
         .follow_links(false);
 
-    // Add custom exclusion patterns as override ignores
-    for pattern in &args.exclude {
-        builder.add_custom_ignore_filename(&pattern);
-        // Or better: we can use filter_entry to apply glob matching.
-        // The above adds a custom ignore *file* which is not what we want.
-        // So we'll use filter_entry with a glob check instead.
-        // Let's redo: remove the add_custom_ignore_filename line, and
-        // apply the exclusion in the loop below after collecting entries.
-        // For simplicity, we'll manually filter while walking.
-    }
-
-    // We'll walk manually and build our tree, applying glob exclusion later.
-    // However, the ignore crate handles standard ignores. We'll use filter_entry
-    // for custom globs.
-    let exclude_patterns: Vec<glob::Pattern> = args
+    let exclude_patterns: Vec<Pattern> = args
         .exclude
         .iter()
-        .map(|p| glob::Pattern::new(p))
+        .map(|p| Pattern::new(p))
         .collect::<Result<Vec<_>, _>>()
         .context("Invalid exclusion pattern")?;
 
-    // Override filter_entry to apply our custom glob patterns
     builder.filter_entry(move |entry| {
         let path = entry.path();
-        // Keep if it's the root
-        if path == args.root {
+        if path == root_for_filter {
             return true;
         }
-        // Relative path for matching
-        let relative = path.strip_prefix(&args.root).unwrap_or(path);
+        let relative = path.strip_prefix(&root_for_filter).unwrap_or(path);
         let rel_str = relative.to_string_lossy();
         for pat in &exclude_patterns {
             if pat.matches(&rel_str) {
@@ -230,7 +186,7 @@ fn main() -> Result<()> {
         let entry = result?;
         let path = entry.path();
         if path == args.root {
-            continue; // skip the root itself
+            continue;
         }
         let relative = path.strip_prefix(&args.root).unwrap();
         let components: Vec<String> = relative
@@ -242,12 +198,12 @@ fn main() -> Result<()> {
     }
 
     // Produce output string
-    let tree_str = fmt_tree(&tree_root, "", false);
+    let tree_str = fmt_tree(&tree_root, "");
     let mut output = format!("# Project Structure\n\n```\n{}```\n", tree_str);
 
     // File contents section
     output.push_str("\n# File Contents\n");
-    let file_paths = collect_files(&tree_root, &args.root);
+    let file_paths = collect_files(&tree_root, &args.root); // now args.root is still valid
     for path in &file_paths {
         let relative = path.strip_prefix(&args.root).unwrap_or(path);
         let rel_display = relative.display();
@@ -274,7 +230,6 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Write to file or stdout
     if let Some(out_path) = args.output {
         fs::write(&out_path, &output)
             .context("Failed to write output file")?;
