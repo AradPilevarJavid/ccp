@@ -167,7 +167,7 @@ When built with the default `clipboard` feature, `--clipboard` sends the snapsho
 
 ## 📄 License
 
-MIT – see `LICENSE` file.
+MIT – see [LICENSE](LICENSE) file.
 
 **Commit message** (use this for the initial commit):
 
