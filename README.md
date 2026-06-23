@@ -356,7 +356,7 @@ You can also create a `.mktreeignore` file in your project root to add custom ig
 ## License
 
 MIT – see [LICENSE](LICENSE).  
-Copyright (c) 2025 Arad Pilevar Javid.
+Copyright (c) 2026 Arad Pilevar Javid.
 
 ---
 
