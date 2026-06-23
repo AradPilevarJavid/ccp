@@ -1,7 +1,16 @@
 [package]
-name = "copy-project"
+name = "ccp"
 version = "0.1.0"
 edition = "2021"
+description = "ccp: 📄 Snapshot, 📋 blueprint, 🏗️ scaffold. Instantly capture project structure & files to Markdown/.tree, then regenerate anywhere."
+license = "MIT"
+repository = "https://github.com/AradPilevarJavid/ccp"
+homepage = "https://github.com/AradPilevarJavid/ccp"
+documentation = "https://docs.rs/ccp"
+readme = "README.md"
+keywords = ["snapshot", "blueprint", "scaffold", "project", "tree", "markdown", "template", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+authors = ["Arad Pilevar Javid"]
 
 [dependencies]
 anyhow = "1.0"
