@@ -8,7 +8,7 @@ use copy_project::{
 };
 use std::fs;
 use std::io::{self, Read};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(name = "ccp")]
@@ -278,6 +278,13 @@ fn run_copy(cli: Cli) -> Result<()> {
         }
         return Ok(());
     }
+    if cli.reverse {
+        let output_path = cli
+            .output
+            .unwrap_or_else(|| default_tree_output_path(&cli.root));
+        return write_output(Some(output_path), &output);
+    }
+
     write_output(cli.output, &output)
 }
 
@@ -315,7 +322,26 @@ fn run_reverse(command: ReverseCommand) -> Result<()> {
         return Ok(());
     }
 
-    write_output(command.output, &output)
+    let output_path = command
+        .output
+        .unwrap_or_else(|| default_tree_output_path(&command.root));
+    write_output(Some(output_path), &output)
+}
+
+fn default_tree_output_path(root: &Path) -> PathBuf {
+    let name = root
+        .file_name()
+        .filter(|name| !name.is_empty() && *name != "." && *name != "..")
+        .map(|name| name.to_string_lossy().into_owned())
+        .or_else(|| {
+            std::env::current_dir().ok().and_then(|path| {
+                path.file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+            })
+        })
+        .unwrap_or_else(|| "project".to_string());
+
+    PathBuf::from(format!("{name}.tree"))
 }
 
 fn run_generate(command: GenerateCommand) -> Result<()> {
