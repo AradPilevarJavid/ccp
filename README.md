@@ -17,7 +17,7 @@ It’s especially handy for pasting a project into a chat window (LLMs, code rev
 - **Tree-only mode** (`--structure`) – just the folder hierarchy without file contents.
 - **Reverse mode** (`--reverse`) – emits a lightweight `.tree` definition that can later be used to recreate the exact directory and file layout.
 - **Generate / Create** subcommands – turn a `.tree` definition back into real files and directories.
-- **Template system** – store reusable `.tree` snippets in a `templates/` directory.
+- **Template system** – bundled defaults from `templates/`, plus custom templates via `--templates-dir`.
 - **Smart ignores** – respects `.gitignore` / `.ignore` files and skips common clutter (`node_modules`, `target`, `__pycache__`, etc.) by default.
 - **Clipboard support** – optional, copies the output directly to the system clipboard.
 - **Flexible filtering** – include hidden files, ignore default excludes, add custom exclude patterns, limit file size.
@@ -85,8 +85,11 @@ Reads a `.tree` definition and creates all directories and files accordingly.
 # From a file
 ccp generate --input blueprint.tree
 
-# From a template stored in templates/
-ccp generate --template react-component
+# From a bundled template
+ccp create my-project --template python
+
+# From a custom template directory
+ccp generate --template react-component --templates-dir ./templates
 
 # Inline definition (\\n for newlines)
 ccp generate --inline "src/
@@ -133,8 +136,8 @@ ccp generate --dry-run --input blueprint.tree
 | Flag / Option              | Description |
 |---------------------------|-------------|
 | `--input <FILE>`           | Read `.tree` definition from a file. |
-| `--template <NAME>`        | Load a template from the templates directory. |
-| `--templates-dir <DIR>`    | Set the templates directory (default: `templates/`). |
+| `--template <NAME>`        | Load a custom template first, then a bundled template. |
+| `--templates-dir <DIR>`    | Set the custom templates directory (default: `templates/`). |
 | `--inline <TEXT>`          | Provide the `.tree` definition directly. |
 | `--force`                  | Overwrite existing files without asking. |
 | `--dry-run`                | Preview the files to be created. |
@@ -166,7 +169,7 @@ ccp reverse -o python-package.tree
 **4. Generate a project from the template**
 
 ```bash
-ccp generate new-package --input python-package.tree
+ccp create my-project --template python
 ```
 
 **5. Use an inline blueprint**
