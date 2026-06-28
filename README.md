@@ -15,6 +15,9 @@
 
 It’s built for quick pasting into chat windows, code reviews, bug reports, and for generating repeatable project templates. Kinda neat actually 😄.
 
+<p align="center">
+  <img src="ccp.gif" alt="ccp demo"/>
+</p>
 ---
 
 ## Features ✨
