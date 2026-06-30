@@ -381,26 +381,44 @@ pub fn file_content(path: &Path, max_size: u64) -> Result<String> {
     }
 }
 
+fn markdown_fence_for(content: &str) -> String {
+    let mut max_run = 0;
+    let mut current_run = 0;
+    for character in content.chars() {
+        if character == '`' {
+            current_run += 1;
+            max_run = max_run.max(current_run);
+        } else {
+            current_run = 0;
+        }
+    }
+    "`".repeat(std::cmp::max(3, max_run + 1))
+}
+
 pub fn render_markdown(snapshot: &Snapshot, max_size: u64) -> String {
     let tree_str = fmt_tree(&snapshot.tree, "");
-    let mut output = format!("# Project Structure\n\n```\n{}```\n", tree_str);
+    let tree_fence = markdown_fence_for(&tree_str);
+    let mut output = format!("# Project Structure\n\n{tree_fence}\n{tree_str}{tree_fence}\n");
     output.push_str("\n# File Contents\n");
     let file_paths = collect_files(&snapshot.tree, &snapshot.root);
     for path in &file_paths {
         let relative = path.strip_prefix(&snapshot.root).unwrap_or(path);
-        output.push_str(&format!("\n## {}\n\n```\n", relative.display()));
-        match file_content(path, max_size) {
-            Ok(content) => output.push_str(&content),
-            Err(error) => output.push_str(&format!("[Error reading file: {}]", error)),
-        }
-        output.push_str("\n```\n");
+        let content = match file_content(path, max_size) {
+            Ok(content) => content,
+            Err(error) => format!("[Error reading file: {}]", error),
+        };
+        let fence = markdown_fence_for(&content);
+        output.push_str(&format!("\n## {}\n\n{fence}\n", relative.display()));
+        output.push_str(&content);
+        output.push_str(&format!("\n{fence}\n"));
     }
     output
 }
 
 pub fn render_structure(snapshot: &Snapshot) -> String {
     let tree_str = fmt_tree(&snapshot.tree, "");
-    format!("# Project Structure\n\n```\n{}```\n", tree_str)
+    let fence = markdown_fence_for(&tree_str);
+    format!("# Project Structure\n\n{fence}\n{tree_str}{fence}\n")
 }
 
 pub fn render_tree_definition(snapshot: &Snapshot, max_size: u64, no_content: bool) -> String {
@@ -790,6 +808,35 @@ mod tests {
 
         assert!(output.contains("# Project Structure"));
         assert!(!output.contains("# File Contents"));
+    }
+
+    #[test]
+    fn markdown_fence_is_longer_than_content_backtick_runs() {
+        assert_eq!(markdown_fence_for("no fences"), "```");
+        assert_eq!(markdown_fence_for("```rust\nfn main() {}\n```"), "````");
+        assert_eq!(markdown_fence_for("````\ninner\n````"), "`````");
+    }
+
+    #[test]
+    fn markdown_render_uses_adaptive_fences_for_file_contents() {
+        let root =
+            std::env::temp_dir().join(format!("ccp-markdown-fence-test-{}", std::process::id()));
+        let readme_path = root.join("README.md");
+
+        fs::create_dir_all(&root).expect("test root should be created");
+        fs::write(&readme_path, "before\n```rust\nfn main() {}\n```\nafter")
+            .expect("test file should be written");
+
+        let mut tree = BTreeMap::new();
+        insert_entry(&mut tree, &[String::from("README.md")], false);
+        let snapshot = Snapshot { root, tree };
+
+        let output = render_markdown(&snapshot, 1_000);
+
+        assert!(output.contains("## README.md\n\n````\nbefore\n```rust"));
+        assert!(output.contains("```\nafter\n````\n"));
+
+        fs::remove_dir_all(&snapshot.root).expect("test root should be removed");
     }
 
     #[test]
