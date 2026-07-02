@@ -426,10 +426,10 @@ pub fn render_raw(snapshot: &Snapshot, max_size: u64) -> String {
         };
         output.push_str(&format!("==== {} ====\n", relative.display()));
         output.push_str(&content);
+        if !content.ends_with('\n') {
+            output.push('\n');
+        }
         if index + 1 < file_paths.len() {
-            if !content.ends_with('\n') {
-                output.push('\n');
-            }
             output.push('\n');
         }
     }
@@ -884,7 +884,7 @@ mod tests {
 
         assert_eq!(
             output,
-            "==== README.md ====\nreadme\n\n==== src/main.rs ====\nfn main() {}"
+            "==== README.md ====\nreadme\n\n==== src/main.rs ====\nfn main() {}\n"
         );
         assert!(!output.contains("# Project Structure"));
         assert!(!output.contains("```"));

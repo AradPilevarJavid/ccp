@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.3]
+added --raw:this option is used so that the program woudln't generate a .tree.The too doesn't use much token if you don't use --raw.use this option if you want to be extreeamly token friendly.
+
+
 ## [0.1.2]
 ### Fixed
 - **Adaptive Markdown fences** – Previously, all file contents were wrapped in a hardcoded triple‑backtick code block (`` ``` ``). If a source file itself contained a line of consecutive backticks , the outer fence would close prematurely, breaking the output and possibly confusing an AI. Now, the tool scans each file’s content for the longest run of consecutive backtick characters and uses a fence one character longer than that run(for instance if you have 3 backticks inside your file the tool would wrap it inside four backticks). This ensures the block never closes unexpectedly, no matter how many nested backtick fences the file contains. The fix is applied to both the full Markdown snapshot and the `--structure` tree output.
