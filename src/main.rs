@@ -2,8 +2,8 @@ use anstream::println as aprintln;
 use anyhow::{Context, Result};
 use ccp_tree::{
     create_tree, fmt_colored_tree, load_template, nodes_to_entries, parse_tree_definition,
-    render_markdown, render_structure, render_tree_definition, snapshot, GenerateOptions, Snapshot,
-    WalkOptions,
+    render_markdown, render_raw, render_structure, render_tree_definition, snapshot,
+    GenerateOptions, Snapshot, WalkOptions,
 };
 use clap::{Parser, Subcommand};
 use std::fs;
@@ -62,6 +62,10 @@ struct Cli {
     /// Output a reusable .tree definition instead of Markdown
     #[arg(long)]
     reverse: bool,
+
+    /// Output raw concatenated file contents (no Markdown, no tree)
+    #[arg(long)]
+    raw: bool,
 
     /// Preview filesystem operations or scan output only
     #[arg(long)]
@@ -243,7 +247,9 @@ fn run_copy(cli: Cli) -> Result<()> {
         return Ok(());
     }
 
-    let output = if cli.reverse {
+    let output = if cli.raw {
+        render_raw(&scan, cli.max_size)
+    } else if cli.reverse {
         render_tree_definition(&scan, cli.max_size, cli.no_content)
     } else if cli.structure {
         render_structure(&scan)
@@ -255,7 +261,13 @@ fn run_copy(cli: Cli) -> Result<()> {
     if cli.clipboard {
         set_clipboard(&output)?;
         if !cli.quiet {
-            let message = if cli.reverse {
+            let message = if cli.raw {
+                if cli.all {
+                    "Full raw project snapshot copied to clipboard."
+                } else {
+                    "Raw project snapshot copied to clipboard."
+                }
+            } else if cli.reverse {
                 if cli.all {
                     "Tree definition (all files) copied to clipboard."
                 } else {
@@ -278,7 +290,7 @@ fn run_copy(cli: Cli) -> Result<()> {
         }
         return Ok(());
     }
-    if cli.reverse {
+    if cli.reverse && !cli.raw {
         let output_path = cli
             .output
             .unwrap_or_else(|| default_tree_output_path(&cli.root));

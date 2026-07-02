@@ -415,6 +415,27 @@ pub fn render_markdown(snapshot: &Snapshot, max_size: u64) -> String {
     output
 }
 
+pub fn render_raw(snapshot: &Snapshot, max_size: u64) -> String {
+    let file_paths = collect_files(&snapshot.tree, &snapshot.root);
+    let mut output = String::new();
+    for (index, path) in file_paths.iter().enumerate() {
+        let relative = path.strip_prefix(&snapshot.root).unwrap_or(path);
+        let content = match file_content(path, max_size) {
+            Ok(content) => content,
+            Err(error) => format!("[Error reading file: {}]", error),
+        };
+        output.push_str(&format!("==== {} ====\n", relative.display()));
+        output.push_str(&content);
+        if index + 1 < file_paths.len() {
+            if !content.ends_with('\n') {
+                output.push('\n');
+            }
+            output.push('\n');
+        }
+    }
+    output
+}
+
 pub fn render_structure(snapshot: &Snapshot) -> String {
     let tree_str = fmt_tree(&snapshot.tree, "");
     let fence = markdown_fence_for(&tree_str);
@@ -835,6 +856,38 @@ mod tests {
 
         assert!(output.contains("## README.md\n\n````\nbefore\n```rust"));
         assert!(output.contains("```\nafter\n````\n"));
+
+        fs::remove_dir_all(&snapshot.root).expect("test root should be removed");
+    }
+
+    #[test]
+    fn raw_render_outputs_only_delimited_file_contents_in_order() {
+        let root = std::env::temp_dir().join(format!("ccp-raw-test-{}", std::process::id()));
+        let src_dir = root.join("src");
+        let readme_path = root.join("README.md");
+        let main_path = src_dir.join("main.rs");
+
+        fs::create_dir_all(&src_dir).expect("test src dir should be created");
+        fs::write(&readme_path, "readme\n").expect("readme should be written");
+        fs::write(&main_path, "fn main() {}").expect("main should be written");
+
+        let mut tree = BTreeMap::new();
+        insert_entry(
+            &mut tree,
+            &[String::from("src"), String::from("main.rs")],
+            false,
+        );
+        insert_entry(&mut tree, &[String::from("README.md")], false);
+        let snapshot = Snapshot { root, tree };
+
+        let output = render_raw(&snapshot, 1_000);
+
+        assert_eq!(
+            output,
+            "==== README.md ====\nreadme\n\n==== src/main.rs ====\nfn main() {}"
+        );
+        assert!(!output.contains("# Project Structure"));
+        assert!(!output.contains("```"));
 
         fs::remove_dir_all(&snapshot.root).expect("test root should be removed");
     }
